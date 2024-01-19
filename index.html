@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Просмотр заказа</title>
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  .container {
+    position: relative;
+    text-align: center;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+
+  input, button {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    outline: none;
+  }
+
+  button {
+    cursor: pointer;
+    background-color: #cf43c1;
+    color: white;
+    border: none;
+  }
+
+  button:hover {
+    background-color: #c02da0;
+  }
+
+  #orderInfo {
+    text-align: left;
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #eee;
+    border-radius: 5px;
+  }
+
+  #serverStatusContainer {
+  position: absolute; 
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  color: gray; /
+}
+
+#serverStatus {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: red;
+  margin-left: 5px;
+}
+
+
+  strong {
+    color: #333;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Просмотр заказа</h1>
+    <label for="orderId">ID заказа:</label>
+    <input type="text" id="orderId" name="orderId">
+    <button onclick="loadOrder()">Получить информацию о заказе</button>
+    <div id="serverStatusContainer">
+        Server status: <div id="serverStatus"></div>
+      </div>      
+    <pre id="orderInfo"></pre>
+  </div>
+
+<script>
+function loadOrder() {
+    var orderId = document.getElementById('orderId').value;
+    if (orderId) {
+        fetch('http://localhost:8080/getOrder/' +  encodeURIComponent(orderId))
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Заказ не найден');
+                }
+                return response.json();
+            })
+            .then(order => {
+                var info = '';
+                for (var key in order) {
+                    info += '<strong>' + key + ':</strong> ' + JSON.stringify(order[key], null, 2) + '<br>';
+                }
+                document.getElementById('orderInfo').innerHTML = info;
+            })
+            .catch(error => {
+                document.getElementById('orderInfo').textContent = error.message;
+            });
+    } else {
+        alert('Введите ID заказа.');
+    }
+}
+function checkServerStatus() {
+    fetch('http://localhost:8080/health')
+        .then(response => {
+            if (response.ok) {
+                document.getElementById('serverStatus').style.backgroundColor = 'green';
+            } else {
+                throw new Error('Server not OK');
+            }
+        })
+        .catch(error => {
+            document.getElementById('serverStatus').style.backgroundColor = 'red';
+        });
+}
+
+setInterval(checkServerStatus, 1000); 
+
+</script>
+</body>
+</html>
