@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	err := godotenv.Load("/Users/artem/Development/go/L0/enivroment.env")
+	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
@@ -30,7 +30,7 @@ func main() {
 	}
 	defer db.Close()
 
-	importJson(db, "/Users/artem/Development/go/L0/json/model.json")
+	importJson(db, "json/model.json")
 
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
