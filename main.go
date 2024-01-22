@@ -10,9 +10,20 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
+	"github.com/sz-yinlong/L0/cache"
+	"github.com/sz-yinlong/L0/jsonImporter"
+	model "github.com/sz-yinlong/L0/models"
+	"github.com/sz-yinlong/L0/server"
 )
 
+var orderCache *cache.OrderCache
+
+type Order model.Order
+
 func main() {
+
+	orderCache = cache.NewOrderCache()
+
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
@@ -30,7 +41,7 @@ func main() {
 	}
 	defer db.Close()
 
-	importJson(db, "json/model.json")
+	jsonImporter.ImportJson(db, "json/model.json")
 
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
@@ -45,7 +56,6 @@ func main() {
 
 	fmt.Println("Connected to NATS Streaming Server")
 
-	orderCache := NewOrderCache()
 	if err := orderCache.LoadOrdersIntoCache(db); err != nil {
 		log.Fatalf("Failed to load orders into cache: %v", err)
 	}
@@ -53,7 +63,7 @@ func main() {
 	if port == "" {
 		log.Fatalf("PORT must be set")
 	}
-	go StartServer(port, orderCache, db)
+	go server.StartServer(port, orderCache, db)
 	log.Println("HTTP server is running on port", port)
 
 	orderUID := "b563feb7b2b84b6test"
@@ -67,7 +77,7 @@ func main() {
 
 }
 
-func handleMessages(nc *nats.Conn, db *sql.DB, cache *OrderCache) {
+func handleMessages(nc *nats.Conn, db *sql.DB, cache *cache.OrderCache) {
 	sub, err := nc.Subscribe("your_channel", func(msg *nats.Msg) {
 		var order Order
 		err := json.Unmarshal(msg.Data, &order)
@@ -90,7 +100,7 @@ func handleMessages(nc *nats.Conn, db *sql.DB, cache *OrderCache) {
 	select {}
 }
 
-func saveOrder(db *sql.DB, cache *OrderCache, order *Order) error {
+func saveOrder(db *sql.DB, cache *cache.OrderCache, order *Order) error {
 	orderUID := order.OrderUid
 
 	if _, found := cache.Get(orderUID); found {
