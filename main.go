@@ -7,9 +7,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/stan.go"
+
 	"github.com/sz-yinlong/L0/cache"
 	"github.com/sz-yinlong/L0/jsonImporter"
 	model "github.com/sz-yinlong/L0/models"
@@ -20,41 +20,32 @@ var orderCache *cache.OrderCache
 
 type Order model.Order
 
+var (
+	db  *sql.DB
+	sc  stan.Conn
+	err error
+)
+
+func init() {
+	db, err = setupDatabase()
+	if err != nil {
+		log.Fatalf("Error setting up database: %v", err)
+	}
+	sc, err = setupNatsStreaming()
+	if err != nil {
+		log.Fatalf("Error setting up NATS Streaming: %v", err)
+	}
+}
+
 func main() {
 
 	orderCache = cache.NewOrderCache()
 
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
-	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"))
-
-	db, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		log.Fatalf("Error opening database: %v", err)
-	}
-	defer db.Close()
-
-	jsonImporter.ImportJson(db, "json/model.json")
+	jsonImporter.ImportJson(db, "/app/json/model.json")
 
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
 	}
-
-	nc, err := nats.Connect("nats://localhost:4222")
-	if err != nil {
-		fmt.Println("Connection Error", err)
-		return
-	}
-	defer nc.Close()
-
-	fmt.Println("Connected to NATS Streaming Server")
 
 	if err := orderCache.LoadOrdersIntoCache(db); err != nil {
 		log.Fatalf("Failed to load orders into cache: %v", err)
@@ -73,12 +64,12 @@ func main() {
 	} else {
 		fmt.Printf("Order not found in cache, loading from DB")
 	}
-	handleMessages(nc, db, orderCache)
+	handleMessages(sc, db, orderCache)
 
 }
 
-func handleMessages(nc *nats.Conn, db *sql.DB, cache *cache.OrderCache) {
-	sub, err := nc.Subscribe("your_channel", func(msg *nats.Msg) {
+func handleMessages(sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
+	sub, err := sc.Subscribe("your_channel", func(msg *stan.Msg) {
 		var order Order
 		err := json.Unmarshal(msg.Data, &order)
 		if err != nil {
@@ -121,4 +112,28 @@ func saveOrder(db *sql.DB, cache *cache.OrderCache, order *Order) error {
 	}
 	return nil
 
+}
+
+func setupNatsStreaming() (stan.Conn, error) {
+
+	clientID := os.Getenv("NATS_CLIENT_ID")
+	clusterID := os.Getenv("NATS_CLUSTER_ID")
+	natsURL := os.Getenv("NATS_URL")
+
+	return stan.Connect(clusterID, clientID, stan.NatsURL(natsURL))
+}
+
+func setupDatabase() (*sql.DB, error) {
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"))
+
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		log.Fatalf("Error opening database: %v", err)
+	}
+	return db, nil
 }

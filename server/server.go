@@ -20,6 +20,9 @@ func StartServer(port string, cache *cache.OrderCache, db *sql.DB) {
 	})
 	http.HandleFunc("/getOrder/", getOrderHandler(cache, db))
 
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
+
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal("Error starting HTTP server:", err)
 	}
