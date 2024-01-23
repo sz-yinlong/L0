@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 
 	_ "github.com/lib/pq"
 	"github.com/nats-io/stan.go"
@@ -38,6 +40,8 @@ func init() {
 
 func main() {
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	orderCache = cache.NewOrderCache()
 
 	jsonImporter.ImportJson(db, "json/model.json", orderCache)
@@ -63,12 +67,16 @@ func main() {
 	} else {
 		fmt.Printf("Order not found in cache, loading from DB")
 	}
-	handleMessages(sc, db, orderCache)
+	go handleMessages(ctx, sc, db, orderCache)
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+	cancel()
 }
 
-func handleMessages(sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
-	sub, err := sc.Subscribe("your_channel", func(msg *stan.Msg) {
+func handleMessages(ctx context.Context, sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
+	sub, err := sc.Subscribe("my_channel", func(msg *stan.Msg) {
 		var order model.Order
 		err := json.Unmarshal(msg.Data, &order)
 		if err != nil {
@@ -87,7 +95,10 @@ func handleMessages(sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
 		return
 	}
 	defer sub.Unsubscribe()
-	select {}
+	go func() {
+		<-ctx.Done()
+		sub.Unsubscribe()
+	}()
 }
 
 func setupNatsStreaming() (stan.Conn, error) {
