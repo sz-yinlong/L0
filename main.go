@@ -36,23 +36,20 @@ func init() {
 	if err != nil {
 		log.Fatalf("Error setting up NATS Streaming: %v", err)
 	}
+	orderCache = cache.NewOrderCache()
+
+	jsonImporter.ImportJson(db, "json/model.json", orderCache)
+
+	if err := orderCache.LoadOrdersIntoCache(db); err != nil {
+		log.Fatalf("Failed to load orders into cache: %v", err)
+	}
 }
 
 func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	orderCache = cache.NewOrderCache()
 
-	jsonImporter.ImportJson(db, "json/model.json", orderCache)
-
-	if err = db.Ping(); err != nil {
-		log.Fatalf("Error pinging database: %v", err)
-	}
-
-	if err := orderCache.LoadOrdersIntoCache(db); err != nil {
-		log.Fatalf("Failed to load orders into cache: %v", err)
-	}
 	port := os.Getenv("PORT")
 	if port == "" {
 		log.Fatalf("PORT must be set")
