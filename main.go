@@ -14,11 +14,10 @@ import (
 	"github.com/sz-yinlong/L0/jsonImporter"
 	model "github.com/sz-yinlong/L0/models"
 	"github.com/sz-yinlong/L0/server"
+	"github.com/sz-yinlong/L0/utility"
 )
 
 var orderCache *cache.OrderCache
-
-type Order model.Order
 
 var (
 	db  *sql.DB
@@ -41,7 +40,7 @@ func main() {
 
 	orderCache = cache.NewOrderCache()
 
-	jsonImporter.ImportJson(db, "/app/json/model.json")
+	jsonImporter.ImportJson(db, "json/model.json", orderCache)
 
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
@@ -70,13 +69,13 @@ func main() {
 
 func handleMessages(sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
 	sub, err := sc.Subscribe("your_channel", func(msg *stan.Msg) {
-		var order Order
+		var order model.Order
 		err := json.Unmarshal(msg.Data, &order)
 		if err != nil {
 			log.Printf("Error unmarshalling message: %v\n", err)
 			return
 		}
-		err = saveOrder(db, cache, &order)
+		err = utility.SaveOrder(db, cache, &order)
 		if err != nil {
 			log.Printf("Error subscribing to channel: %v", err)
 			return
@@ -89,29 +88,6 @@ func handleMessages(sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
 	}
 	defer sub.Unsubscribe()
 	select {}
-}
-
-func saveOrder(db *sql.DB, cache *cache.OrderCache, order *Order) error {
-	orderUID := order.OrderUid
-
-	if _, found := cache.Get(orderUID); found {
-		log.Printf("Order %s already exists in cache, skipping save to DB", orderUID)
-		return nil
-	}
-
-	jsonData, err := json.Marshal(order)
-	if err != nil {
-		return err
-	}
-	sqlStatement := `INSERT INTO orders (order_uid, order_data) VALUES ($1, $2) ON CONFLICT (order_uid) DO NOTHING`
-	log.Println("Executing SQL statement:", sqlStatement)
-	log.Printf("Order UID: %s, Data: %s\n", order.OrderUid, jsonData)
-	_, err = db.Exec(sqlStatement, order.OrderUid, jsonData)
-	if err != nil {
-		return err
-	}
-	return nil
-
 }
 
 func setupNatsStreaming() (stan.Conn, error) {
