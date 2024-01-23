@@ -27,8 +27,8 @@ func (oc *OrderCache) Set(orderUID string, order Order) {
 	oc.cache[orderUID] = order
 }
 func (oc *OrderCache) Get(orderUID string) (Order, bool) {
-	oc.mu.RLock()
-	defer oc.mu.RUnlock()
+	oc.mu.Lock()
+	defer oc.mu.Unlock()
 	order, found := oc.cache[orderUID]
 	return order, found
 }

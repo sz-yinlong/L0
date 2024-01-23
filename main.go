@@ -85,7 +85,7 @@ func handleMessages(ctx context.Context, sc stan.Conn, db *sql.DB, cache *cache.
 		}
 		err = utility.SaveOrder(db, cache, &order)
 		if err != nil {
-			log.Printf("Error subscribing to channel: %v", err)
+			log.Printf("Error saving order: %v", err)
 			return
 		}
 
