@@ -2,7 +2,7 @@ package server
 
 import (
 	"L0/cache"
-	model "L0/resources/dbmodels"
+	"L0/utility"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -26,7 +26,6 @@ func StartServer(port string, cache *cache.OrderCache, db *sql.DB) {
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal("Error starting HTTP server:", err)
 	}
-
 }
 
 func getOrderHandler(cache *cache.OrderCache, db *sql.DB) http.HandlerFunc {
@@ -34,6 +33,7 @@ func getOrderHandler(cache *cache.OrderCache, db *sql.DB) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		orderUID := strings.TrimPrefix(r.URL.Path, "/getOrder/")
 		log.Printf("Requested orderUID: %s", orderUID)
+
 		if orderUID == "" {
 			http.Error(w, "Order ID is required", http.StatusBadRequest)
 			return
@@ -43,34 +43,17 @@ func getOrderHandler(cache *cache.OrderCache, db *sql.DB) http.HandlerFunc {
 			json.NewEncoder(w).Encode(Order)
 			return
 		}
-
-		var orderData []byte
-
-		query := `SELECT order_data FROM orders WHERE order_uid = $1`
-		row := db.QueryRow(query, orderUID)
-		err := row.Scan(&orderData)
-
+		order, err := utility.GetOrderFromDB(db, orderUID)
 		if err != nil {
-
-			if err == sql.ErrNoRows {
-				http.Error(w, "Order not found", http.StatusNotFound)
-				return
-			}
 			http.Error(w, "Server error", http.StatusInternalServerError)
-			log.Printf("Error querying Order from DB: %v", err)
 			return
 		}
-
-		var Order model.Order
-
-		if err := json.Unmarshal(orderData, &Order); err != nil {
-			http.Error(w, "Error decoding Order data", http.StatusInternalServerError)
-			log.Printf("Error unmarshalling Order data: %v", err)
+		if order == nil {
+			http.Error(w, "Order not found", http.StatusNotFound)
 			return
 		}
-
-		cache.Set(orderUID, Order)
+		cache.Set(orderUID, *order)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Order)
+		json.NewEncoder(w).Encode(order)
 	}
 }
