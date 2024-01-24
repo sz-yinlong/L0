@@ -8,38 +8,53 @@ import (
 	"sync"
 )
 
-type Order = model.Order
+type OrderRecord struct {
+	mu    sync.RWMutex
+	Order model.Order
+}
 
 type OrderCache struct {
 	mu sync.RWMutex
 
-	cache map[string]Order
+	cache map[string]*OrderRecord
 }
 
 func NewOrderCache() *OrderCache {
 	return &OrderCache{
-		cache: make(map[string]Order),
+		cache: make(map[string]*OrderRecord),
 	}
 }
-func (oc *OrderCache) Set(orderUID string, order Order) {
+func (oc *OrderCache) Set(orderUID string, order model.Order) {
 	oc.mu.Lock()
-	defer oc.mu.Unlock()
-	oc.cache[orderUID] = order
+	if _, exists := oc.cache[orderUID]; !exists {
+		oc.cache[orderUID] = &OrderRecord{}
+	}
+	oc.cache[orderUID].mu.Lock()
+	oc.mu.Unlock()
+
+	oc.cache[orderUID].Order = order
+	oc.cache[orderUID].mu.Unlock()
 }
-func (oc *OrderCache) Get(orderUID string) (Order, bool) {
-	order, found := oc.cache[orderUID]
-	return order, found
+
+func (oc *OrderCache) Get(orderUID string) (model.Order, bool) {
+	oc.mu.RLock()
+	record, exists := oc.cache[orderUID]
+	oc.mu.RUnlock()
+
+	if !exists {
+		return model.Order{}, false
+	}
+
+	record.mu.RLock()
+	defer record.mu.RUnlock()
+	return record.Order, true
 }
-func (oc *OrderCache) Delete(orderUID string) {
-	oc.mu.Lock()
-	defer oc.mu.Unlock()
-	delete(oc.cache, orderUID)
-}
+
 func (oc *OrderCache) LoadOrdersIntoCache(db *sql.DB) error {
 	query := "SELECT order_uid, order_data FROM orders"
 	rows, err := db.Query(query)
 	if err != nil {
-		return fmt.Errorf("querry execution error: %v", err)
+		return fmt.Errorf("query execution error: %v", err)
 	}
 	defer rows.Close()
 
@@ -50,10 +65,11 @@ func (oc *OrderCache) LoadOrdersIntoCache(db *sql.DB) error {
 			return fmt.Errorf("error scanning row: %v", err)
 		}
 
-		var order Order
+		var order model.Order
 		if err := json.Unmarshal(orderData, &order); err != nil {
 			return fmt.Errorf("error unmarshaling order data: %v", err)
 		}
+
 		oc.Set(orderUID, order)
 	}
 	if err = rows.Err(); err != nil {
