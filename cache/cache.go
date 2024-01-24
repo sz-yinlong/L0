@@ -1,18 +1,18 @@
 package cache
 
 import (
+	model "L0/resources/dbmodels"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
-
-	model "github.com/sz-yinlong/L0/models"
 )
 
 type Order = model.Order
 
 type OrderCache struct {
-	mu    sync.RWMutex
+	mu sync.RWMutex
+
 	cache map[string]Order
 }
 
@@ -27,8 +27,6 @@ func (oc *OrderCache) Set(orderUID string, order Order) {
 	oc.cache[orderUID] = order
 }
 func (oc *OrderCache) Get(orderUID string) (Order, bool) {
-	oc.mu.Lock()
-	defer oc.mu.Unlock()
 	order, found := oc.cache[orderUID]
 	return order, found
 }

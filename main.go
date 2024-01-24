@@ -1,6 +1,12 @@
 package main
 
 import (
+	"L0/cache"
+	"L0/jsonImporter"
+	"L0/resources/config"
+	model "L0/resources/dbmodels"
+	"L0/server"
+	"L0/utility"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -11,49 +17,46 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/nats-io/stan.go"
-
-	"github.com/sz-yinlong/L0/cache"
-	"github.com/sz-yinlong/L0/jsonImporter"
-	model "github.com/sz-yinlong/L0/models"
-	"github.com/sz-yinlong/L0/server"
-	"github.com/sz-yinlong/L0/utility"
 )
 
-var orderCache *cache.OrderCache
-
 var (
-	db  *sql.DB
-	sc  stan.Conn
-	err error
+	db         *sql.DB
+	sc         stan.Conn
+	cfg        *config.Config
+	orderCache *cache.OrderCache
+	port       string
 )
 
 func init() {
-	db, err = setupDatabase()
+	cfg = config.NewConfig()
+	orderCache = cache.NewOrderCache()
+
+	port = cfg.Port
+	if port == "" {
+		log.Fatalf("PORT must be set")
+	}
+
+	var err error
+	db, err := setupDatabase(cfg)
 	if err != nil {
 		log.Fatalf("Error setting up database: %v", err)
 	}
-	sc, err = setupNatsStreaming()
+
+	sc, err = setupNatsStreaming(cfg)
 	if err != nil {
 		log.Fatalf("Error setting up NATS Streaming: %v", err)
 	}
-	orderCache = cache.NewOrderCache()
 
-	jsonImporter.ImportJson(db, "json/model.json", orderCache)
-
+	jsonImporter.ImportJson(db, "resources/json/model.json", orderCache)
 	if err := orderCache.LoadOrdersIntoCache(db); err != nil {
 		log.Fatalf("Failed to load orders into cache: %v", err)
 	}
 }
 
 func main() {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		log.Fatalf("PORT must be set")
-	}
 	go server.StartServer(port, orderCache, db)
 	log.Println("HTTP server is running on port", port)
 
@@ -85,7 +88,6 @@ func handleMessages(ctx context.Context, sc stan.Conn, db *sql.DB, cache *cache.
 			log.Printf("Error saving order: %v", err)
 			return
 		}
-
 	})
 	if err != nil {
 		fmt.Println("Error creating subscriber", err)
@@ -98,22 +100,21 @@ func handleMessages(ctx context.Context, sc stan.Conn, db *sql.DB, cache *cache.
 	}()
 }
 
-func setupNatsStreaming() (stan.Conn, error) {
-
-	clientID := os.Getenv("NATS_CLIENT_ID")
-	clusterID := os.Getenv("NATS_CLUSTER_ID")
-	natsURL := os.Getenv("NATS_URL")
-
+func setupNatsStreaming(cfg *config.Config) (stan.Conn, error) {
+	clientID := cfg.NATSClientID
+	clusterID := cfg.NATSClusterID
+	natsURL := cfg.NATSURL
 	return stan.Connect(clusterID, clientID, stan.NatsURL(natsURL))
 }
 
-func setupDatabase() (*sql.DB, error) {
+func setupDatabase(cfg *config.Config) (*sql.DB, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"))
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBUser,
+		cfg.DBPassword,
+		cfg.DBName,
+	)
 
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {

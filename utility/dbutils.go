@@ -1,14 +1,13 @@
 package utility
 
 import (
+	"L0/cache"
+	model "L0/resources/dbmodels"
 	"database/sql"
 	"encoding/json"
 	"log"
 
 	_ "github.com/lib/pq"
-
-	"github.com/sz-yinlong/L0/cache"
-	model "github.com/sz-yinlong/L0/models"
 )
 
 func SaveOrder(db *sql.DB, cache *cache.OrderCache, order *model.Order) error {
@@ -24,8 +23,6 @@ func SaveOrder(db *sql.DB, cache *cache.OrderCache, order *model.Order) error {
 		return err
 	}
 	sqlStatement := `INSERT INTO orders (order_uid, order_data) VALUES ($1, $2) ON CONFLICT (order_uid) DO NOTHING`
-	log.Println("Executing SQL statement:", sqlStatement)
-	log.Printf("Order UID: %s, Data: %s\n", order.OrderUid, jsonData)
 	_, err = db.Exec(sqlStatement, order.OrderUid, jsonData)
 	if err != nil {
 		return err

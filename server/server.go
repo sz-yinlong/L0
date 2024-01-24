@@ -1,14 +1,13 @@
 package server
 
 import (
+	"L0/cache"
+	model "L0/resources/dbmodels"
 	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
-
-	"github.com/sz-yinlong/L0/cache"
-	model "github.com/sz-yinlong/L0/models"
 )
 
 func StartServer(port string, cache *cache.OrderCache, db *sql.DB) {
@@ -21,6 +20,7 @@ func StartServer(port string, cache *cache.OrderCache, db *sql.DB) {
 	http.HandleFunc("/getOrder/", getOrderHandler(cache, db))
 
 	fs := http.FileServer(http.Dir("static"))
+
 	http.Handle("/", fs)
 
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
@@ -45,11 +45,13 @@ func getOrderHandler(cache *cache.OrderCache, db *sql.DB) http.HandlerFunc {
 		}
 
 		var orderData []byte
+
 		query := `SELECT order_data FROM orders WHERE order_uid = $1`
 		row := db.QueryRow(query, orderUID)
 		err := row.Scan(&orderData)
 
 		if err != nil {
+
 			if err == sql.ErrNoRows {
 				http.Error(w, "Order not found", http.StatusNotFound)
 				return

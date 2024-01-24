@@ -1,14 +1,14 @@
 package jsonImporter
 
 import (
+	"L0/cache"
+
+	model "L0/resources/dbmodels"
+	"L0/utility"
 	"database/sql"
 	"encoding/json"
 	"log"
 	"os"
-
-	cache "github.com/sz-yinlong/L0/cache"
-	model "github.com/sz-yinlong/L0/models"
-	"github.com/sz-yinlong/L0/utility"
 )
 
 func ImportJson(db *sql.DB, jsonFilePath string, cache *cache.OrderCache) {
@@ -27,6 +27,5 @@ func ImportJson(db *sql.DB, jsonFilePath string, cache *cache.OrderCache) {
 	if err := utility.SaveOrder(db, cache, &order); err != nil {
 		log.Fatalf("Error saving order to database: %v", err)
 	}
-
 	log.Println("Order imported and saved to cache successfully.")
 }

@@ -1,11 +1,11 @@
-module github.com/sz-yinlong/L0
+module L0
 
 go 1.21
 
 require (
 	github.com/lib/pq v1.10.9
 	github.com/nats-io/stan.go v0.10.4
-	
+
 )
 
 require (
