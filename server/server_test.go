@@ -17,7 +17,6 @@ func TestGetOrderHandler_DataInDB(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Настройка мокированного ответа от базы данных
 	rows := sqlmock.NewRows([]string{"order_data"}).AddRow(`{"order_uid":"testorderUID", "other_fields": "values"}`)
 	mock.ExpectQuery("SELECT order_data FROM orders WHERE order_uid = \\$1").WithArgs("testorderUID").WillReturnRows(rows)
 
@@ -33,7 +32,6 @@ func TestGetOrderHandler_DataInDB(t *testing.T) {
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	// Проверка, были ли выполнены все ожидаемые запросы
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

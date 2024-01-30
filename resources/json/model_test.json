@@ -1,0 +1,50 @@
+{
+    "order_uid": "c8a2e7f1d3e74b6test",
+    "track_number": "WBILMTESTTRACK2",
+    "entry": "WBIL",
+    "delivery": {
+      "name": "John Doe",
+      "phone": "+1234567890",
+      "zip": "123456",
+      "city": "Sample City",
+      "address": "123 Main Street",
+      "region": "Sample Region",
+      "email": "johndoe@example.com"
+    },
+    "payment": {
+      "transaction": "c8a2e7f1d3e74b6test",
+      "request_id": "",
+      "currency": "EUR",
+      "provider": "paymentgateway",
+      "amount": 2200,
+      "payment_dt": 1643102345,
+      "bank": "beta",
+      "delivery_cost": 1800,
+      "goods_total": 400,
+      "custom_fee": 0
+    },
+    "items": [
+      {
+        "chrt_id": 9876543,
+        "track_number": "WBILMTESTTRACK2",
+        "price": 800,
+        "rid": "ba1234567b89a4e0btest",
+        "name": "T-Shirts",
+        "sale": 10,
+        "size": "M",
+        "total_price": 400,
+        "nm_id": 4567890,
+        "brand": "SampleBrand",
+        "status": 201
+      }
+    ],
+    "locale": "en",
+    "internal_signature": "",
+    "customer_id": "johndoe123",
+    "delivery_service": "sampleexpress",
+    "shardkey": "7",
+    "sm_id": 88,
+    "date_created": "2022-05-15T14:30:45Z",
+    "oof_shard": "2"
+  }
+  

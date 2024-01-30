@@ -3,6 +3,7 @@ package main
 import (
 	"L0/cache"
 	"L0/jsonImporter"
+	natsTestMessage "L0/nats-test-message"
 	"L0/resources/config"
 	model "L0/resources/dbmodels"
 	"L0/server"
@@ -37,7 +38,7 @@ func init() {
 	}
 
 	var err error
-	db, err := setupDatabase(cfg)
+	db, err = setupDatabase(cfg)
 	if err != nil {
 		log.Fatalf("Error setting up database: %v", err)
 	}
@@ -54,20 +55,29 @@ func init() {
 }
 
 func main() {
+
+	readyChan := make(chan struct{})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.StartServer(port, orderCache, db)
-	log.Println("HTTP server is running on port", port)
+	go func() {
+		go server.StartServer(port, orderCache, db)
+		log.Println("HTTP server is running on port", port)
 
-	orderUID := "b563feb7b2b84b6test"
-	order, found := orderCache.Get(orderUID)
-	if found {
-		fmt.Printf("Order found in cache: %+v\n", order)
-	} else {
-		fmt.Printf("Order not found in cache, loading from DB")
-	}
-	go handleMessages(ctx, sc, db, orderCache)
+		orderUID := "b563feb7b2b84b6test"
+		order, found := orderCache.Get(orderUID)
+		if found {
+			fmt.Printf("Order found in cache: %+v\n", order)
+		} else {
+			fmt.Printf("Order not found in cache, loading from DB")
+		}
+		go handleMessages(ctx, sc, db, orderCache)
+		close(readyChan)
+	}()
+	<-readyChan
+
+	natsTestMessage.MessageTest(sc)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -77,6 +87,8 @@ func main() {
 
 func handleMessages(ctx context.Context, sc stan.Conn, db *sql.DB, cache *cache.OrderCache) {
 	sub, err := sc.Subscribe("my_channel", func(msg *stan.Msg) {
+		log.Printf("Received message: %s", string(msg.Data))
+
 		var order model.Order
 		err := json.Unmarshal(msg.Data, &order)
 		if err != nil {
